@@ -57,23 +57,30 @@ app.post('/interactions', async function (req, res) {
         });
       }
 
-      // fetch messages since this message
+      // fetch messages in channel since this message
       DiscordRequest(`/channels/${channelId}/messages?after=${messageId}&limit=${100}`, {method: 'GET'})
         .then((res) => res.json())
         .then(async (channelMessages) => {
           // filter down to those of the same author
           var authorMessages = channelMessages.filter((message) => message.author.id === authorId)
           // add the command target message to the list
+          // first message of the rant
           const messageIds = [messageId, ...authorMessages.map((x) => x.id)]
+
           // delete the messages
-          await DiscordRequest(`/channels/${channelId}/messages/bulk-delete`, {method: 'POST', body: { messages: messageIds}})
+          if(messageIds.length < 2){
+            await DiscordRequest(`/channels/${channelId}/messages/${messageId}`, {method: 'DELETE'})
+          }else{
+            await DiscordRequest(`/channels/${channelId}/messages/bulk-delete`, {method: 'POST', body: {messages: messageIds}})
+          }
+
           // report success
           await DiscordRequest(`/webhooks/${appId}/${interactionToken}/messages/@original`, {method: 'PATCH', body: {
             content: 'I deleted your rant, you\'re welcome!'
           }})
         });
 
-      // report success back to the commanding user
+      // ack command, shows as "thinking" in client
       return res.send({
         type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
