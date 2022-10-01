@@ -2,14 +2,15 @@ import 'dotenv/config';
 import express from 'express';
 import {
   InteractionType,
-  InteractionResponseType
+  InteractionResponseType,
+  MessageComponentTypes
 } from 'discord-interactions';
 import { VerifyDiscordRequest } from './utils.js';
 import {
   HasGuildCommands,
   UNRANT_COMMAND,
 } from './commands.js';
-import handleUnrantRequest from './command_handlers/unrant.js';
+import { handleCancelUnrantButtonClickedRequest, handleConfirmUnrantButtonClickedRequest, handleUnrantMessageCommandRequest } from './command_handlers/unrant.js';
 
 // Create an express app
 const app = express();
@@ -22,7 +23,7 @@ app.use(express.json({ verify: VerifyDiscordRequest(process.env.PUBLIC_KEY) }));
  * Interactions endpoint URL where Discord will send HTTP requests
  */
 app.post('/interactions', async function (req, res) {
-  try{
+  try {
     // Interaction type and data
     const { type, data } = req.body;
 
@@ -34,14 +35,23 @@ app.post('/interactions', async function (req, res) {
     // Handle slash command requests
     // See https://discord.com/developers/docs/interactions/application-commands#slash-commands
     if (type === InteractionType.APPLICATION_COMMAND) {
-      const { name } = data;
-      if (name === UNRANT_COMMAND.name) {
-        return handleUnrantRequest(req, res);
+      if (data.name === UNRANT_COMMAND.name) {
+        return handleUnrantMessageCommandRequest(req, res);
+      }
+    }
+
+    if (type === InteractionType.MESSAGE_COMPONENT) {
+      if (data.component_type === MessageComponentTypes.BUTTON) {
+        if (data.custom_id.startsWith('unrant_confirm_')) {
+          return handleConfirmUnrantButtonClickedRequest(req, res);
+        } else if (data.custom_id.startsWith("unrant_cancel")) {
+          return handleCancelUnrantButtonClickedRequest(req, res);
+        }
       }
     }
   }
-  catch(error){
-    console.error('Failed to process /interactions request', req, error);
+  catch (error) {
+    console.error('Failed to process /interactions request', error);
   }
 });
 
